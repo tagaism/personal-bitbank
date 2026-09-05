@@ -7,6 +7,18 @@
 Quantity from the exchange. Weighted average cost rebuilt from your fills. Live JPY prices and a daily value chart.
 
 <p>
+  <img alt="Next.js" src="https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=nextdotjs&logoColor=white" />
+  <img alt="React" src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black" />
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white" />
+  <img alt="Tailwind CSS" src="https://img.shields.io/badge/Tailwind-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white" />
+  <img alt="Node.js" src="https://img.shields.io/badge/Node.js-25-339933?style=flat-square&logo=nodedotjs&logoColor=white" />
+  <img alt="Docker" src="https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white" />
+  <img alt="SQLite" src="https://img.shields.io/badge/SQLite-003B57?style=flat-square&logo=sqlite&logoColor=white" />
+  <img alt="Vitest" src="https://img.shields.io/badge/Vitest-6E9F18?style=flat-square&logo=vitest&logoColor=white" />
+  <img alt="bitbank" src="https://img.shields.io/badge/bitbank-API-1A1A1A?style=flat-square" />
+</p>
+
+<p>
   <img src="docs/screenshots/dashboard.png" alt="Sample dashboard with masked sample data" width="900" />
 </p>
 

@@ -95,6 +95,25 @@ export function formatChartDate(ms: number): string {
   }).format(new Date(ms));
 }
 
+export function formatChartTick(ms: number, spanMs: number): string {
+  const spanDays = spanMs / 86_400_000;
+  if (spanDays > 800) {
+    return String(new Date(ms).getUTCFullYear());
+  }
+  if (spanDays > 150) {
+    return new Intl.DateTimeFormat("en-GB", {
+      month: "short",
+      year: "2-digit",
+      timeZone: "UTC",
+    }).format(new Date(ms));
+  }
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  }).format(new Date(ms));
+}
+
 export function formatTimestamp(ms: number | null): string {
   if (ms == null) return "—";
   return new Intl.DateTimeFormat("en-GB", {

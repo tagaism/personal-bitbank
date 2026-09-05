@@ -1,0 +1,11 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      BITBANK_API_KEY: ${BITBANK_API_KEY}
+      BITBANK_API_SECRET: ${BITBANK_API_SECRET}
+    volumes:
+      - ./.data:/app/.data
+    restart: unless-stopped

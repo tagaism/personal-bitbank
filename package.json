@@ -10,6 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "check-branch": "node scripts/check-branch-name.mjs",
+    "up": "docker compose --env-file .env.local up -d",
+    "down": "docker compose down",
     "prepare": "husky"
   },
   "dependencies": {

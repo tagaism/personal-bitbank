@@ -33,4 +33,29 @@ describe("parseBitbankTradeCsv", () => {
     expect(trades[0].trade_id).toBe(9);
     expect(trades[0].amount).toBe("100");
   });
+
+  it("parses closed-order CSVs and skips unfilled rows", () => {
+    const trades = parseBitbankTradeCsv(`注文id,通貨ペア,現物/信用,タイプ,売/買,数量,指値価格,トリガー価格,約定数量,平均価格,注文日時,ステータス,有効期限,ポストオンリー
+58496505888,ltc_jpy,現物,limit,buy,2.22000000,6666.00000000,,2.22000000,6666.0000000000,2026-06-24 07:55:29.986,FULLY_FILLED,2026-12-21 07:55:29.986,FALSE
+60111987499,xym_jpy,現物,limit,buy,43900.00000000,0.50000000,,0.00000000,0.0000000000,2026-08-29 15:27:32.764,CANCELED_UNFILLED,2027-02-25 15:27:32.764,FALSE
+57900000001,doge_jpy,現物,limit,buy,100.00000000,10.00000000,,40.00000000,9.5000000000,2026-06-05 15:54:43.934,CANCELED_PARTIALLY_FILLED,2026-12-02 15:54:43.934,FALSE
+`);
+    expect(trades).toHaveLength(2);
+    expect(trades[0]).toMatchObject({
+      trade_id: 58496505888,
+      order_id: 58496505888,
+      pair: "ltc_jpy",
+      side: "buy",
+      amount: "2.22000000",
+      price: "6666.0000000000",
+      source: "order_csv",
+    });
+    expect(trades[0].executed_at).toBe(Date.parse("2026-06-24T07:55:29.986+09:00"));
+    expect(trades[1]).toMatchObject({
+      order_id: 57900000001,
+      amount: "40.00000000",
+      price: "9.5000000000",
+      source: "order_csv",
+    });
+  });
 });

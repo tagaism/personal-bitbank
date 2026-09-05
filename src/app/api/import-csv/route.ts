@@ -21,7 +21,7 @@ export async function POST(request: Request) {
         {
           ok: false,
           message:
-            "No spot trades found. Use the 約定履歴 CSV from bitbank Data → execution history.",
+            "No filled spot trades found. Use the 約定履歴 CSV, or a closed-orders CSV with 約定数量 > 0.",
         },
         { status: 400 },
       );

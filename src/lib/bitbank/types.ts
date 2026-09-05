@@ -23,6 +23,8 @@ export type BitbankTrade = {
   profit_loss?: string;
   interest?: string;
   executed_at: number;
+  /** Closed-order CSV rows are one fill at average price; drop when real fills exist. */
+  source?: "order_csv";
 };
 
 export type BitbankErrorBody = {

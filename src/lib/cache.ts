@@ -48,6 +48,17 @@ export function mergeTrades(
   const byId = new Map<number, BitbankTrade>();
   for (const trade of existing) byId.set(trade.trade_id, trade);
   for (const trade of incoming) byId.set(trade.trade_id, trade);
+
+  const ordersWithFills = new Set<number>();
+  for (const trade of byId.values()) {
+    if (trade.source !== "order_csv") ordersWithFills.add(trade.order_id);
+  }
+  for (const trade of [...byId.values()]) {
+    if (trade.source === "order_csv" && ordersWithFills.has(trade.order_id)) {
+      byId.delete(trade.trade_id);
+    }
+  }
+
   return [...byId.values()].sort((a, b) => {
     if (a.executed_at !== b.executed_at) return a.executed_at - b.executed_at;
     return a.trade_id - b.trade_id;

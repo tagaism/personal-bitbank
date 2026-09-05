@@ -8,13 +8,18 @@ const HEADER_ALIASES: Record<string, string> = {
   タイプ: "type",
   "売/買": "side",
   数量: "amount",
+  約定数量: "filled_amount",
   価格: "price",
+  平均価格: "average_price",
+  指値価格: "limit_price",
   実現損益: "profit_loss",
   発生手数料: "fee_occurred",
   実現手数料: "fee_realized",
   実現利息: "interest",
   "m/t": "maker_taker",
   取引日時: "executed_at",
+  注文日時: "ordered_at",
+  ステータス: "status",
   order_id: "order_id",
   trade_id: "trade_id",
   pair: "pair",
@@ -78,16 +83,27 @@ function parseExecutedAt(raw: string): number {
     return numeric < 1e12 ? numeric * 1000 : numeric;
   }
   const match = trimmed.match(
-    /(\d{4})[/-](\d{1,2})[/-](\d{1,2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?/,
+    /(\d{4})[/-](\d{1,2})[/-](\d{1,2})[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?/,
   );
   if (!match) {
     throw new Error(`Unrecognized trade timestamp: ${raw}`);
   }
-  const [, year, month, day, hour, minute, second] = match;
-  const iso = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${hour.padStart(2, "0")}:${minute}:${(second ?? "00").padStart(2, "0")}+09:00`;
+  const [, year, month, day, hour, minute, second, fraction] = match;
+  const frac = (fraction ?? "").padEnd(3, "0").slice(0, 3);
+  const iso = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${hour.padStart(2, "0")}:${minute}:${(second ?? "00").padStart(2, "0")}.${frac}+09:00`;
   const ms = Date.parse(iso);
   if (!Number.isFinite(ms)) throw new Error(`Unrecognized trade timestamp: ${raw}`);
   return ms;
+}
+
+function parseNumberCell(raw: string | undefined): string {
+  return (raw ?? "").trim().replace(/,/g, "");
+}
+
+function isPositiveAmount(raw: string): boolean {
+  if (!raw) return false;
+  const value = Number(raw);
+  return Number.isFinite(value) && value > 0;
 }
 
 function parseTypedFee(
@@ -139,6 +155,17 @@ export function parseBitbankTradeCsv(text: string): BitbankTrade[] {
     const pair = normalizePair(row.pair);
     if (!pair.includes("_")) continue;
 
+    const closedOrder =
+      Object.prototype.hasOwnProperty.call(row, "filled_amount") && !row.trade_id;
+    const filledAmount = parseNumberCell(row.filled_amount);
+    const amount = closedOrder ? filledAmount : parseNumberCell(row.amount);
+    const price = closedOrder
+      ? parseNumberCell(row.average_price) || parseNumberCell(row.limit_price)
+      : parseNumberCell(row.price);
+    const executedRaw = row.executed_at || row.ordered_at;
+    if (!amount || !price || !executedRaw) continue;
+    if (closedOrder && !isPositiveAmount(filledAmount)) continue;
+
     const { base, quote } = (() => {
       const index = pair.lastIndexOf("_");
       return { base: pair.slice(0, index), quote: pair.slice(index + 1) };
@@ -146,20 +173,24 @@ export function parseBitbankTradeCsv(text: string): BitbankTrade[] {
 
     const feeSource = row.fee_realized || row.fee_occurred;
     const fees = parseTypedFee(feeSource, base, quote);
+    const tradeId = Number(row.trade_id || row.order_id);
+    const orderId = Number(row.order_id || 0);
 
-    trades.push({
-      trade_id: Number(row.trade_id),
+    const trade: BitbankTrade = {
+      trade_id: tradeId,
       pair,
-      order_id: Number(row.order_id || 0),
+      order_id: orderId,
       side,
       type: row.type || "limit",
-      amount: row.amount.replace(/,/g, ""),
-      price: row.price.replace(/,/g, ""),
+      amount,
+      price,
       maker_taker: row.maker_taker || "",
       fee_amount_base: fees.base,
       fee_amount_quote: fees.quote,
-      executed_at: parseExecutedAt(row.executed_at),
-    });
+      executed_at: parseExecutedAt(executedRaw),
+    };
+    if (closedOrder) trade.source = "order_csv";
+    trades.push(trade);
   }
 
   return trades.filter((trade) => Number.isFinite(trade.trade_id));

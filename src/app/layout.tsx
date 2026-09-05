@@ -19,7 +19,7 @@ const instrument = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "Onigiri Coffee",
+  title: "personal-bitbank",
   description: "Personal bitbank holdings: quantity and weighted average cost.",
 };
 

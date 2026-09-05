@@ -97,8 +97,8 @@ export function Dashboard() {
           <p className="font-mono text-[11px] tracking-[0.22em] text-[var(--accent)] uppercase">
             Personal · read-only
           </p>
-          <h1 className="mt-2 font-serif text-4xl tracking-tight text-[var(--foam)]">
-            Onigiri Coffee
+          <h1 className="mt-2 font-mono text-3xl tracking-tight text-[var(--foam)]">
+            personal-bitbank
           </h1>
           <p className="mt-2 max-w-md text-sm leading-6 text-[var(--muted)]">
             Spot holdings on bitbank. Quantity from the exchange, average cost

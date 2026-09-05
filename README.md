@@ -1,4 +1,4 @@
-# Onigiri Coffee
+# personal-bitbank
 
 Personal, local dashboard for your [bitbank](https://bitbank.cc/) spot holdings: **quantity** and **weighted average cost in JPY**.
 

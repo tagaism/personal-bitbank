@@ -19,9 +19,11 @@ export function Dashboard() {
   const [notice, setNotice] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setNotice(null);
+  const load = useCallback(async (isRefresh = false) => {
+    if (isRefresh) {
+      setLoading(true);
+      setNotice(null);
+    }
     try {
       const response = await fetch("/api/holdings", { cache: "no-store" });
       const body = (await response.json()) as PortfolioResult;
@@ -38,8 +40,28 @@ export function Dashboard() {
   }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    let cancelled = false;
+    fetch("/api/holdings", { cache: "no-store" })
+      .then(async (response) => {
+        const body = (await response.json()) as PortfolioResult;
+        if (!cancelled) setData(body);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setData({
+            ok: false,
+            error: "unknown",
+            message: "Could not reach the local API. Is the dev server running?",
+          });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function onImport(file: File) {
     setImporting(true);
@@ -59,7 +81,7 @@ export function Dashboard() {
       setNotice(
         `Imported ${body.imported} new trades (${body.parsed} in file, ${body.total} stored).`,
       );
-      await load();
+      await load(true);
     } catch {
       setNotice("CSV import failed.");
     } finally {
@@ -106,7 +128,7 @@ export function Dashboard() {
             type="button"
             className="rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[#2a1408] transition hover:bg-[var(--accent-hover)] disabled:opacity-50"
             disabled={loading}
-            onClick={() => void load()}
+            onClick={() => void load(true)}
           >
             {loading ? "Syncing…" : "Refresh"}
           </button>
@@ -177,7 +199,7 @@ export function Dashboard() {
             </div>
           ) : null}
 
-          <div className="mt-8 overflow-hidden rounded-2xl border border-[var(--line)]">
+          <div className="mt-8 overflow-x-auto rounded-2xl border border-[var(--line)]">
             <table className="w-full border-collapse text-left">
               <thead className="bg-[var(--surface)] text-[11px] tracking-[0.18em] text-[var(--muted)] uppercase">
                 <tr>

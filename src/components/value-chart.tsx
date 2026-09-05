@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 import type { ValueHistoryResult, ValuePoint } from "@/lib/value-history";
 import {
+  DEFAULT_PRESET,
   RANGE_PRESETS,
   clampWindow,
   matchingPreset,
@@ -76,10 +77,10 @@ export function ValueChart({ nonce }: Props) {
   const view = useMemo(() => {
     if (points.length < 2) return { start: 0, end: 0 };
     if (win.start === 0 && win.end === 0) {
-      return { start: 0, end: points.length - 1 };
+      return windowFromPreset(times, DEFAULT_PRESET, MIN_SPAN);
     }
     return clampWindow(win.start, win.end, points.length, MIN_SPAN);
-  }, [points.length, win.end, win.start]);
+  }, [points.length, times, win.end, win.start]);
 
   const visible = useMemo(() => {
     if (points.length < 2) return [];

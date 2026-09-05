@@ -33,8 +33,10 @@ npm run dev
 Or with Docker (keys and `.data/` stay on this machine):
 
 ```bash
-docker compose --env-file .env.local up --build
+npm run up
 ```
+
+Stop with `npm run down`. The image is built on first `up` if it does not exist yet.
 
 Open [http://localhost:3000](http://localhost:3000). Keys never leave this machine; they are read only on the server.
 
@@ -52,5 +54,6 @@ bitbank → profile menu → **データ** → **約定履歴** → extract / do
 npm run dev
 npm test
 npm run build
-docker compose --env-file .env.local up --build
+npm run up
+npm run down
 ```

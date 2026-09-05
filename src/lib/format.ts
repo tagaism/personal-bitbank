@@ -74,6 +74,27 @@ export function formatYen(value: string | null): string {
   }).format(number)}`;
 }
 
+export function formatYenAxis(value: number): string {
+  if (value === 0) return "¥0";
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000) {
+    return `¥${(value / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1)}M`;
+  }
+  if (abs >= 1000) {
+    return `¥${Math.round(value).toLocaleString("en-US")}`;
+  }
+  return formatYen(String(value));
+}
+
+export function formatChartDate(ms: number): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(ms));
+}
+
 export function formatTimestamp(ms: number | null): string {
   if (ms == null) return "—";
   return new Intl.DateTimeFormat("en-GB", {

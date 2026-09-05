@@ -82,7 +82,7 @@ export class BitbankClient {
     const path = search
       ? `/v1/user/spot/trade_history?${search}`
       : "/v1/user/spot/trade_history";
-    const data = await this.privateGet<{ trades: BitbankTrade[] }>(path);
+    const data = await this.privateGet<{ trades?: BitbankTrade[] }>(path);
     return data.trades ?? [];
   }
 

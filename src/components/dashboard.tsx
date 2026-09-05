@@ -4,13 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PortfolioResult } from "@/lib/portfolio";
 import { formatQuantity, formatTimestamp, formatYen } from "@/lib/format";
 
-type ImportResult = {
-  ok: boolean;
-  parsed?: number;
-  imported?: number;
-  total?: number;
-  message?: string;
-};
+type ImportResult =
+  | { ok: true; parsed: number; imported: number; total: number }
+  | { ok: false; message?: string };
 
 export function Dashboard() {
   const [data, setData] = useState<PortfolioResult | null>(null);

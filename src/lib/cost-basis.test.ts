@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { BitbankTrade } from "./bitbank/types";
-import { computeCostBasis, splitPair } from "./cost-basis";
+import {
+  computeCostBasis,
+  splitPair,
+  type CostBasisResult,
+  type LotSnapshot,
+} from "./cost-basis";
 
 let nextId = 1;
 
@@ -30,6 +35,12 @@ function trade(
   };
 }
 
+function lotOf(result: CostBasisResult, asset: string): LotSnapshot {
+  const lot = result.lots[asset];
+  if (!lot) throw new Error(`expected lot for ${asset}`);
+  return lot;
+}
+
 describe("splitPair", () => {
   it("splits base and quote", () => {
     expect(splitPair("btc_jpy")).toEqual({ base: "btc", quote: "jpy" });
@@ -42,8 +53,8 @@ describe("computeCostBasis", () => {
     const result = computeCostBasis([
       trade({ pair: "btc_jpy", side: "buy", amount: "1", price: "10000000" }),
     ]);
-    expect(result.lots.btc.quantity).toBe("1");
-    expect(result.lots.btc.averageCostJpy).toBe("10000000");
+    expect(lotOf(result, "btc").quantity).toBe("1");
+    expect(lotOf(result, "btc").averageCostJpy).toBe("10000000");
     expect(result.incompleteHistory).toBe(false);
   });
 
@@ -52,8 +63,8 @@ describe("computeCostBasis", () => {
       trade({ pair: "btc_jpy", side: "buy", amount: "1", price: "10000000" }),
       trade({ pair: "btc_jpy", side: "buy", amount: "1", price: "12000000" }),
     ]);
-    expect(result.lots.btc.quantity).toBe("2");
-    expect(result.lots.btc.averageCostJpy).toBe("11000000");
+    expect(lotOf(result, "btc").quantity).toBe("2");
+    expect(lotOf(result, "btc").averageCostJpy).toBe("11000000");
   });
 
   it("keeps average after a partial sell", () => {
@@ -61,9 +72,9 @@ describe("computeCostBasis", () => {
       trade({ pair: "btc_jpy", side: "buy", amount: "2", price: "10000000" }),
       trade({ pair: "btc_jpy", side: "sell", amount: "1", price: "15000000" }),
     ]);
-    expect(result.lots.btc.quantity).toBe("1");
-    expect(result.lots.btc.averageCostJpy).toBe("10000000");
-    expect(result.lots.btc.costJpy).toBe("10000000");
+    expect(lotOf(result, "btc").quantity).toBe("1");
+    expect(lotOf(result, "btc").averageCostJpy).toBe("10000000");
+    expect(lotOf(result, "btc").costJpy).toBe("10000000");
   });
 
   it("adds quote fees on buys into cost", () => {
@@ -76,8 +87,8 @@ describe("computeCostBasis", () => {
         fee_amount_quote: "1000",
       }),
     ]);
-    expect(result.lots.btc.quantity).toBe("1");
-    expect(result.lots.btc.averageCostJpy).toBe("10001000");
+    expect(lotOf(result, "btc").quantity).toBe("1");
+    expect(lotOf(result, "btc").averageCostJpy).toBe("10001000");
   });
 
   it("subtracts base fees from quantity received", () => {
@@ -90,8 +101,8 @@ describe("computeCostBasis", () => {
         fee_amount_base: "0.001",
       }),
     ]);
-    expect(result.lots.btc.quantity).toBe("0.999");
-    expect(Number(result.lots.btc.averageCostJpy)).toBeCloseTo(
+    expect(lotOf(result, "btc").quantity).toBe("0.999");
+    expect(Number(lotOf(result, "btc").averageCostJpy)).toBeCloseTo(
       10000000 / 0.999,
       6,
     );
@@ -102,10 +113,10 @@ describe("computeCostBasis", () => {
       trade({ pair: "btc_jpy", side: "buy", amount: "1", price: "10000000" }),
       trade({ pair: "eth_btc", side: "buy", amount: "10", price: "0.05" }),
     ]);
-    expect(result.lots.btc.quantity).toBe("0.5");
-    expect(result.lots.btc.averageCostJpy).toBe("10000000");
-    expect(result.lots.eth.quantity).toBe("10");
-    expect(result.lots.eth.averageCostJpy).toBe("500000");
+    expect(lotOf(result, "btc").quantity).toBe("0.5");
+    expect(lotOf(result, "btc").averageCostJpy).toBe("10000000");
+    expect(lotOf(result, "eth").quantity).toBe("10");
+    expect(lotOf(result, "eth").averageCostJpy).toBe("500000");
   });
 
   it("skips margin trades", () => {
@@ -120,8 +131,8 @@ describe("computeCostBasis", () => {
       }),
     ]);
     expect(result.skippedMargin).toBe(1);
-    expect(result.lots.btc.quantity).toBe("1");
-    expect(result.lots.btc.averageCostJpy).toBe("10000000");
+    expect(lotOf(result, "btc").quantity).toBe("1");
+    expect(lotOf(result, "btc").averageCostJpy).toBe("10000000");
   });
 
   it("flags history gaps when selling more than remaining", () => {
@@ -129,8 +140,8 @@ describe("computeCostBasis", () => {
       trade({ pair: "btc_jpy", side: "buy", amount: "1", price: "10000000" }),
       trade({ pair: "btc_jpy", side: "sell", amount: "2", price: "12000000" }),
     ]);
-    expect(result.lots.btc.quantity).toBe("0");
-    expect(result.lots.btc.averageCostJpy).toBeNull();
+    expect(lotOf(result, "btc").quantity).toBe("0");
+    expect(lotOf(result, "btc").averageCostJpy).toBeNull();
     expect(result.incompleteHistory).toBe(true);
   });
 
@@ -153,7 +164,7 @@ describe("computeCostBasis", () => {
         trade_id: 1,
       }),
     ]);
-    expect(result.lots.btc.quantity).toBe("1");
-    expect(result.lots.btc.averageCostJpy).toBe("10000000");
+    expect(lotOf(result, "btc").quantity).toBe("1");
+    expect(lotOf(result, "btc").averageCostJpy).toBe("10000000");
   });
 });

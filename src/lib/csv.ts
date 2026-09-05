@@ -88,7 +88,16 @@ function parseExecutedAt(raw: string): number {
   if (!match) {
     throw new Error(`Unrecognized trade timestamp: ${raw}`);
   }
-  const [, year, month, day, hour, minute, second, fraction] = match;
+  const year = match.at(1);
+  const month = match.at(2);
+  const day = match.at(3);
+  const hour = match.at(4);
+  const minute = match.at(5);
+  const second = match.at(6);
+  const fraction = match.at(7);
+  if (!year || !month || !day || !hour || !minute) {
+    throw new Error(`Unrecognized trade timestamp: ${raw}`);
+  }
   const frac = (fraction ?? "").padEnd(3, "0").slice(0, 3);
   const iso = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${hour.padStart(2, "0")}:${minute}:${(second ?? "00").padStart(2, "0")}.${frac}+09:00`;
   const ms = Date.parse(iso);
@@ -119,8 +128,11 @@ function parseTypedFee(
   if (!match) {
     return { base: "0", quote: "0" };
   }
-  const amount = match[1];
-  const unit = (match[2] ?? "").toLowerCase();
+  const amount = match.at(1);
+  const unit = (match.at(2) ?? "").toLowerCase();
+  if (!amount) {
+    return { base: "0", quote: "0" };
+  }
   if (!unit || unit === quote) return { base: "0", quote: amount };
   if (unit === base) return { base: amount, quote: "0" };
   if (unit === "jpy") return { base: "0", quote: quote === "jpy" ? amount : "0" };

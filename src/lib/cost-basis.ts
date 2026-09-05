@@ -12,7 +12,7 @@ export type LotSnapshot = {
 };
 
 export type CostBasisResult = {
-  lots: Record<string, LotSnapshot>;
+  lots: Partial<Record<string, LotSnapshot>>;
   incompleteHistory: boolean;
   skippedMargin: number;
 };
@@ -131,7 +131,7 @@ export function computeCostBasis(trades: BitbankTrade[]): CostBasisResult {
     }
   }
 
-  const snapshots: Record<string, LotSnapshot> = {};
+  const snapshots: Partial<Record<string, LotSnapshot>> = {};
   for (const [asset, lot] of lots) {
     snapshots[asset] = {
       quantity: lot.quantity.toFixed(),

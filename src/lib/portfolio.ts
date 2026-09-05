@@ -1,5 +1,6 @@
 import Decimal from "decimal.js";
 import { BitbankClient, readBitbankCredentials } from "./bitbank/client";
+import { getTickers, lastPriceByPair, priceInJpy } from "./bitbank/tickers";
 import type { BitbankTrade } from "./bitbank/types";
 import { loadTradeCache, mergeTrades, saveTradeCache } from "./cache";
 import { computeCostBasis, quantitiesDiffer } from "./cost-basis";
@@ -10,6 +11,7 @@ export type HoldingRow = {
   name: string;
   quantity: string;
   averageCostJpy: string | null;
+  currentPriceJpy: string | null;
   quantityPrecision: number;
   mismatch: boolean;
 };
@@ -84,6 +86,12 @@ export async function loadPortfolio(): Promise<PortfolioResult> {
     const assets = await client.getAssets();
     const basis = computeCostBasis(trades);
     const mismatches: PortfolioMeta["mismatches"] = [];
+    let lastByPair = new Map<string, string>();
+    try {
+      lastByPair = lastPriceByPair(await getTickers());
+    } catch {
+      lastByPair = new Map();
+    }
 
     const holdings: HoldingRow[] = assets
       .filter((asset) => new Decimal(asset.onhand_amount || "0").gt(0))
@@ -109,6 +117,7 @@ export async function loadPortfolio(): Promise<PortfolioResult> {
           name: assetName(code),
           quantity: asset.onhand_amount,
           averageCostJpy: code === "jpy" ? null : (lot?.averageCostJpy ?? null),
+          currentPriceJpy: priceInJpy(code, lastByPair),
           quantityPrecision: asset.amount_precision,
           mismatch,
         };

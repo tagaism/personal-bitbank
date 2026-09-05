@@ -202,13 +202,14 @@ export function Dashboard() {
                   <th className="px-5 py-3 font-medium">Asset</th>
                   <th className="px-5 py-3 text-right font-medium">Quantity</th>
                   <th className="px-5 py-3 text-right font-medium">Average cost</th>
+                  <th className="px-5 py-3 text-right font-medium">Current price</th>
                 </tr>
               </thead>
               <tbody>
                 {data.holdings.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={3}
+                      colSpan={4}
                       className="px-5 py-12 text-center text-sm text-[var(--muted)]"
                     >
                       No balances on the account.
@@ -238,6 +239,9 @@ export function Dashboard() {
                       </td>
                       <td className="px-5 py-4 text-right font-mono text-sm tabular-nums text-[var(--foam)]">
                         {row.asset === "jpy" ? "—" : formatYen(row.averageCostJpy)}
+                      </td>
+                      <td className="px-5 py-4 text-right font-mono text-sm tabular-nums text-[var(--foam)]">
+                        {row.asset === "jpy" ? "—" : formatYen(row.currentPriceJpy)}
                       </td>
                     </tr>
                   ))

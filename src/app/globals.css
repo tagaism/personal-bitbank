@@ -1,0 +1,38 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #16110c;
+  --surface: #211a14;
+  --foam: #f3e6d4;
+  --muted: #8a7a6b;
+  --line: #3a2f26;
+  --accent: #e0894a;
+  --accent-hover: #f0a05c;
+  --warn: #e2b15a;
+  --warn-line: #5c4a24;
+  --warn-bg: #2a2214;
+  --background: var(--bg);
+  --foreground: var(--foam);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-instrument);
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  background: var(--bg);
+  color: var(--foam);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+.font-serif {
+  font-family: var(--font-instrument), "Iowan Old Style", Georgia, serif;
+}

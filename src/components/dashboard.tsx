@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PortfolioResult } from "@/lib/portfolio";
 import { formatQuantity, formatTimestamp, formatYen } from "@/lib/format";
+import { ValueChart } from "./value-chart";
 
 type ImportResult =
   | { ok: true; parsed: number; imported: number; total: number }
@@ -175,6 +176,8 @@ export function Dashboard() {
             {data.meta.syncedAt ? ` · synced ${formatTimestamp(data.meta.syncedAt)}` : ""}
             {loading ? " · refreshing…" : ""}
           </p>
+
+          <ValueChart nonce={data.meta.syncedAt} />
 
           {data.meta.incompleteHistory ? (
             <div className="mt-4 rounded-xl border border-[var(--warn-line)] bg-[var(--warn-bg)] px-4 py-3 text-sm leading-6 text-[var(--warn)]">

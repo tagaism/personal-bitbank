@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_PRESET,
   clampWindow,
   matchingPreset,
   panWindow,
@@ -33,6 +34,18 @@ describe("windowFromPreset", () => {
     const win = windowFromPreset(late, "YTD");
     expect(late[win.start]).toBe(Date.UTC(2026, 5, 1));
     expect(win.end).toBe(late.length - 1);
+  });
+});
+
+describe("DEFAULT_PRESET", () => {
+  it("is YTD", () => {
+    expect(DEFAULT_PRESET).toBe("YTD");
+    const win = windowFromPreset(times, DEFAULT_PRESET);
+    expect(matchingPreset(times, win)).toBe("YTD");
+    const endT = times[win.end] ?? 0;
+    expect(times[win.start]).toBe(
+      Date.UTC(new Date(endT).getUTCFullYear(), 0, 1),
+    );
   });
 });
 

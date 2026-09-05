@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>personal-bitbank sample</title>
+  <style>
+    :root {
+      --bg: #16110c;
+      --surface: #211a14;
+      --foam: #f3e6d4;
+      --muted: #8a7a6b;
+      --line: #3a2f26;
+      --accent: #e0894a;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--foam);
+      font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+    }
+    .wrap { max-width: 1024px; margin: 0 auto; padding: 40px 32px 56px; }
+    .kicker {
+      font-family: ui-monospace, Menlo, monospace;
+      font-size: 11px;
+      letter-spacing: 0.22em;
+      color: var(--accent);
+      text-transform: uppercase;
+    }
+    h1 {
+      margin: 8px 0 0;
+      font-family: ui-monospace, Menlo, monospace;
+      font-size: 30px;
+      font-weight: 500;
+      letter-spacing: -0.03em;
+    }
+    .lede { margin: 10px 0 0; max-width: 26rem; font-size: 14px; line-height: 1.6; color: var(--muted); }
+    header { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; padding-bottom: 32px; border-bottom: 1px solid var(--line); }
+    .btns { display: flex; gap: 12px; }
+    .btn {
+      border-radius: 999px;
+      padding: 8px 16px;
+      font-size: 14px;
+      color: var(--foam);
+      border: 1px solid var(--line);
+      background: transparent;
+    }
+    .btn.primary { background: var(--accent); color: #2a1408; border: 0; font-weight: 600; }
+    .meta { margin: 24px 0 0; font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--muted); }
+    .card { margin-top: 32px; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+    .card-h { display: flex; justify-content: space-between; align-items: flex-end; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+    .card-h h2 { margin: 0; font-size: 14px; font-weight: 500; }
+    .card-h p { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+    .value { font-family: ui-monospace, Menlo, monospace; font-size: 14px; }
+    .value span { margin-left: 8px; font-size: 12px; color: var(--muted); }
+    .chart { padding: 8px 8px 4px; }
+    .presets { display: flex; gap: 6px; padding: 8px 16px 0; }
+    .chip {
+      border-radius: 999px;
+      padding: 4px 12px;
+      font-family: ui-monospace, Menlo, monospace;
+      font-size: 11px;
+      color: var(--muted);
+      border: 1px solid var(--line);
+    }
+    .chip.on { background: var(--accent); color: #2a1408; border: 0; }
+    .range { padding: 8px 16px 16px; font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: var(--muted); }
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      background: var(--surface);
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 500;
+      padding: 12px 20px;
+      text-align: left;
+    }
+    th.r, td.r { text-align: right; }
+    td { padding: 16px 20px; border-top: 1px solid var(--line); font-family: ui-monospace, Menlo, monospace; font-size: 14px; }
+    .name { font-size: 12px; color: var(--muted); font-family: ui-sans-serif, system-ui, sans-serif; margin-left: 8px; }
+    .foot { margin-top: 10px; padding: 0 8px 12px; font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <div class="kicker">Personal · read-only</div>
+        <h1>personal-bitbank</h1>
+        <p class="lede">Spot holdings on bitbank. Quantity from the exchange, average cost from your remaining inventory (weighted).</p>
+      </div>
+      <div class="btns">
+        <div class="btn">Import CSV</div>
+        <div class="btn primary">Refresh</div>
+      </div>
+    </header>
+    <p class="meta">8 assets · 4,210 trades · sample data</p>
+    <section class="card">
+      <div class="card-h">
+        <div>
+          <h2>Portfolio value</h2>
+          <p>Daily mark-to-market in JPY. Last point scaled to current exchange balances.</p>
+        </div>
+        <div class="value">¥2,480,000<span>12 Dec 2024</span></div>
+      </div>
+      <div class="chart">
+        <svg viewBox="0 0 980 220" width="100%" height="220">
+          <line x1="56" x2="968" y1="28" y2="28" stroke="#3a2f26" />
+          <line x1="56" x2="968" y1="76" y2="76" stroke="#3a2f26" />
+          <line x1="56" x2="968" y1="124" y2="124" stroke="#3a2f26" />
+          <line x1="56" x2="968" y1="172" y2="172" stroke="#3a2f26" />
+          <text x="48" y="32" text-anchor="end" fill="#8a7a6b" font-size="10" font-family="ui-monospace,monospace">¥2.5M</text>
+          <text x="48" y="80" text-anchor="end" fill="#8a7a6b" font-size="10" font-family="ui-monospace,monospace">¥1.9M</text>
+          <text x="48" y="128" text-anchor="end" fill="#8a7a6b" font-size="10" font-family="ui-monospace,monospace">¥1.2M</text>
+          <text x="48" y="176" text-anchor="end" fill="#8a7a6b" font-size="10" font-family="ui-monospace,monospace">¥620k</text>
+          <text x="56" y="208" fill="#8a7a6b" font-size="10" font-family="ui-monospace,monospace">2022</text>
+          <text x="280" y="208" fill="#8a7a6b" font-size="10" font-family="ui-monospace,monospace">2023</text>
+          <text x="520" y="208" fill="#8a7a6b" font-size="10" font-family="ui-monospace,monospace">2024</text>
+          <text x="760" y="208" fill="#8a7a6b" font-size="10" font-family="ui-monospace,monospace">2025</text>
+          <path d="M56 150 C 140 146, 180 40, 250 48 S 340 120, 420 108 S 520 90, 610 70 S 740 96, 860 88 S 920 100, 968 94 L 968 172 L 56 172 Z" fill="#e0894a" fill-opacity="0.12" />
+          <path d="M56 150 C 140 146, 180 40, 250 48 S 340 120, 420 108 S 520 90, 610 70 S 740 96, 860 88 S 920 100, 968 94" fill="none" stroke="#e0894a" stroke-width="2" />
+        </svg>
+      </div>
+      <div class="presets">
+        <span class="chip">1M</span><span class="chip">3M</span><span class="chip">6M</span>
+        <span class="chip">1Y</span><span class="chip">YTD</span><span class="chip on">ALL</span>
+      </div>
+      <svg viewBox="0 0 980 48" width="100%" height="48" style="display:block;padding:0 8px">
+        <path d="M8 30 C 80 28, 140 12, 220 16 S 360 32, 480 24 S 640 10, 800 18 S 900 22, 972 20" fill="none" stroke="#8a7a6b" stroke-width="1.25" />
+        <rect x="8" y="2" width="964" height="44" fill="#e0894a" fill-opacity="0.16" stroke="#e0894a" />
+      </svg>
+      <div class="range">1 Jan 2022 → 12 Dec 2024<br />Latest point matches exchange balances · sample</div>
+    </section>
+    <section class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>Asset</th>
+            <th class="r">Quantity</th>
+            <th class="r">Average cost</th>
+            <th class="r">Current price</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>BTC <span class="name">Bitcoin</span></td><td class="r">0.4200</td><td class="r">¥8,400,000</td><td class="r">¥12,500,000</td></tr>
+          <tr><td>ETH <span class="name">Ethereum</span></td><td class="r">3.1500</td><td class="r">¥280,000</td><td class="r">¥385,000</td></tr>
+          <tr><td>SOL <span class="name">Solana</span></td><td class="r">42.00</td><td class="r">¥18,000</td><td class="r">¥22,400</td></tr>
+          <tr><td>XRP <span class="name">XRP</span></td><td class="r">12,000</td><td class="r">¥80.00</td><td class="r">¥120.00</td></tr>
+          <tr><td>LTC <span class="name">Litecoin</span></td><td class="r">18.50</td><td class="r">¥12,000</td><td class="r">¥8,400</td></tr>
+          <tr><td>ADA <span class="name">Cardano</span></td><td class="r">4,200</td><td class="r">¥45.00</td><td class="r">¥33.00</td></tr>
+          <tr><td>DOT <span class="name">Polkadot</span></td><td class="r">90.00</td><td class="r">¥650.00</td><td class="r">¥142.00</td></tr>
+          <tr><td>JPY <span class="name">Japanese Yen</span></td><td class="r">120,000</td><td class="r">—</td><td class="r">—</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </div>
+</body>
+</html>

@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent,
+  type PointerEvent,
+  type ReactNode,
+} from "react";
 import type { ValueHistoryResult, ValuePoint } from "@/lib/value-history";
 import {
   DEFAULT_PRESET,
@@ -12,7 +20,14 @@ import {
   type ChartWindow,
   type RangePreset,
 } from "@/lib/chart-range";
-import { formatChartDate, formatChartTick, formatYen, formatYenAxis } from "@/lib/format";
+import {
+  formatChartDate,
+  formatChartTick,
+  formatPct,
+  formatSignedYen,
+  formatYen,
+  formatYenAxis,
+} from "@/lib/format";
 
 type Props = {
   nonce: number | null;
@@ -26,6 +41,8 @@ export function ValueChart({ nonce }: Props) {
   const [data, setData] = useState<ValueHistoryResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [hover, setHover] = useState<number | null>(null);
+  const [showValue, setShowValue] = useState(true);
+  const [showCost, setShowCost] = useState(true);
   const [win, setWin] = useState<ChartWindow>({ start: 0, end: 0 });
   const wrapRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(720);
@@ -95,7 +112,7 @@ export function ValueChart({ nonce }: Props) {
   const geometry = useMemo(() => {
     if (visible.length < 2) return null;
     const xs = visible.map((point) => point.t);
-    const ys = visible.map((point) => point.value);
+    const ys = yValues(visible, showValue, showCost);
     const minX = xs[0] ?? 0;
     const maxX = xs[xs.length - 1] ?? 1;
     const rawMin = Math.min(...ys);
@@ -113,6 +130,12 @@ export function ValueChart({ nonce }: Props) {
         return `${cmd}${xOf(point.t).toFixed(2)} ${yOf(point.value).toFixed(2)}`;
       })
       .join(" ");
+    const costLine = visible
+      .map((point, index) => {
+        const cmd = index === 0 ? "M" : "L";
+        return `${cmd}${xOf(point.t).toFixed(2)} ${yOf(point.cost).toFixed(2)}`;
+      })
+      .join(" ");
     const area = `${line} L${xOf(maxX).toFixed(2)} ${yOf(minY).toFixed(2)} L${xOf(minX).toFixed(2)} ${yOf(minY).toFixed(2)} Z`;
     const yTicks = [0, 0.25, 0.5, 0.75, 1].map((frac) => minY + spanY * frac);
     const tickCount = Math.min(6, visible.length);
@@ -125,14 +148,14 @@ export function ValueChart({ nonce }: Props) {
       seenX.add(point.t);
       xTicks.push(point);
     }
-    return { xOf, yOf, line, area, minX, maxX, minY, maxY, yTicks, xTicks, spanX };
-  }, [innerH, innerW, points.length, view.end, view.start, visible]);
+    return { xOf, yOf, line, costLine, area, minX, maxX, minY, maxY, yTicks, xTicks, spanX };
+  }, [innerH, innerW, points.length, showCost, showValue, view.end, view.start, visible]);
 
   const overview = useMemo(() => {
     if (points.length < 2) return null;
     const minX = points[0]?.t ?? 0;
     const maxX = points[points.length - 1]?.t ?? 1;
-    const ys = points.map((point) => point.value);
+    const ys = yValues(points, showValue, showCost);
     const minY = Math.min(...ys);
     const maxY = Math.max(...ys);
     const spanX = maxX - minX || 1;
@@ -145,14 +168,21 @@ export function ValueChart({ nonce }: Props) {
         return `${cmd}${xOf(point.t).toFixed(2)} ${yOf(point.value).toFixed(2)}`;
       })
       .join(" ");
+    const costLine = points
+      .map((point, index) => {
+        const cmd = index === 0 ? "M" : "L";
+        return `${cmd}${xOf(point.t).toFixed(2)} ${yOf(point.cost).toFixed(2)}`;
+      })
+      .join(" ");
     const startT = points[view.start]?.t ?? minX;
     const endT = points[view.end]?.t ?? maxX;
     return {
       line,
+      costLine,
       x0: xOf(startT),
       x1: xOf(endT),
     };
-  }, [points, view.end, view.start, width]);
+  }, [points, showCost, showValue, view.end, view.start, width]);
 
   function applyWindow(next: ChartWindow) {
     setHover(null);
@@ -221,29 +251,93 @@ export function ValueChart({ nonce }: Props) {
     dragRef.current = null;
   }
 
-  const hoverPoint = hover != null ? points[hover] : undefined;
-  const lastVisible = visible[visible.length - 1];
+  function toggleSeries(key: "value" | "cost") {
+    if (key === "value") {
+      setShowValue((on) => (on && !showCost ? true : !on));
+      return;
+    }
+    setShowCost((on) => (on && !showValue ? true : !on));
+  }
+
+  const hoverPoint = hover != null ? points.at(hover) : undefined;
+  const lastVisible = visible.at(-1);
   const shown = hoverPoint ?? lastVisible;
+  const pnl = shown ? shown.value - shown.cost : 0;
+  const pnlTone =
+    pnl > 0.5
+      ? "text-[var(--accent)]"
+      : pnl < -0.5
+        ? "text-[var(--warn)]"
+        : "text-[var(--muted)]";
+  const pnlPct =
+    shown && Math.abs(shown.cost) >= 1 ? formatPct(pnl / Math.abs(shown.cost)) : "—";
 
   return (
     <section className="mt-8 rounded-2xl border border-[var(--line)] bg-[var(--bg)]">
-      <div className="flex flex-col gap-1 border-b border-[var(--line)] px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-3 border-b border-[var(--line)] px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-sm tracking-wide text-[var(--foam)]">
             Portfolio value
           </h2>
           <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
-            Daily mark-to-market in JPY. Last point scaled to current exchange
-            balances.
+            Daily mark-to-market versus remaining cost (invested capital) in JPY.
+          </p>
+          <p className="mt-2 flex flex-wrap gap-x-2 gap-y-1 font-mono text-[11px] tracking-wide text-[var(--muted)] uppercase">
+            <SeriesToggle
+              label="Value"
+              pressed={showValue}
+              disabled={showValue && !showCost}
+              onClick={() => {
+                toggleSeries("value");
+              }}
+            >
+              <span className="inline-block h-0.5 w-3 bg-[var(--accent)]" />
+            </SeriesToggle>
+            <SeriesToggle
+              label="Cost"
+              pressed={showCost}
+              disabled={showCost && !showValue}
+              onClick={() => {
+                toggleSeries("cost");
+              }}
+            >
+              <span className="inline-block h-px w-3 border-t border-dashed border-[var(--foam)]" />
+            </SeriesToggle>
           </p>
         </div>
-        {visible.length > 0 ? (
-          <p className="font-mono text-sm tabular-nums text-[var(--foam)]">
-            {formatYen(String(shown.value))}
-            <span className="ml-2 text-xs text-[var(--muted)]">
+        {shown ? (
+          <div className="text-left sm:text-right">
+            {showValue ? (
+              <p className="font-mono text-sm tabular-nums text-[var(--foam)]">
+                {formatYen(String(shown.value))}
+                <span className="ml-2 text-xs font-sans tracking-normal text-[var(--muted)]">
+                  value
+                </span>
+              </p>
+            ) : null}
+            {showCost ? (
+              <p
+                className={`font-mono tabular-nums text-[var(--muted)] ${
+                  showValue ? "mt-0.5 text-xs" : "text-sm text-[var(--foam)]"
+                }`}
+              >
+                {formatYen(String(shown.cost))}
+                <span className="ml-2 font-sans text-xs tracking-normal">cost</span>
+              </p>
+            ) : null}
+            {showValue && showCost ? (
+              <p className={`mt-0.5 font-mono text-xs tabular-nums ${pnlTone}`}>
+                {formatSignedYen(pnl)}
+                <span className="ml-2">{pnlPct}</span>
+                <span className="ml-2 font-sans tracking-normal text-[var(--muted)]">
+                  P&L
+                </span>
+              </p>
+            ) : null}
+            <p className="mt-1 font-mono text-[11px] text-[var(--muted)]">
               {formatChartDate(shown.t)}
-            </span>
-          </p>
+            </p>
+          </div>
         ) : null}
       </div>
 
@@ -305,13 +399,27 @@ export function ValueChart({ nonce }: Props) {
                   {formatChartTick(tick.t, geometry.spanX)}
                 </text>
               ))}
-              <path d={geometry.area} fill="var(--accent)" fillOpacity="0.12" />
-              <path
-                d={geometry.line}
-                fill="none"
-                stroke="var(--accent)"
-                strokeWidth="2"
-              />
+              {showValue ? (
+                <path d={geometry.area} fill="var(--accent)" fillOpacity="0.12" />
+              ) : null}
+              {showCost ? (
+                <path
+                  d={geometry.costLine}
+                  fill="none"
+                  stroke="var(--foam)"
+                  strokeOpacity="0.55"
+                  strokeWidth="1.5"
+                  strokeDasharray="5 4"
+                />
+              ) : null}
+              {showValue ? (
+                <path
+                  d={geometry.line}
+                  fill="none"
+                  stroke="var(--accent)"
+                  strokeWidth="2"
+                />
+              ) : null}
               {hoverPoint ? (
                 <>
                   <line
@@ -322,12 +430,24 @@ export function ValueChart({ nonce }: Props) {
                     stroke="var(--foam)"
                     strokeOpacity="0.35"
                   />
-                  <circle
-                    cx={geometry.xOf(hoverPoint.t)}
-                    cy={geometry.yOf(hoverPoint.value)}
-                    r="3.5"
-                    fill="var(--accent)"
-                  />
+                  {showCost ? (
+                    <circle
+                      cx={geometry.xOf(hoverPoint.t)}
+                      cy={geometry.yOf(hoverPoint.cost)}
+                      r="3"
+                      fill="var(--bg)"
+                      stroke="var(--foam)"
+                      strokeWidth="1.5"
+                    />
+                  ) : null}
+                  {showValue ? (
+                    <circle
+                      cx={geometry.xOf(hoverPoint.t)}
+                      cy={geometry.yOf(hoverPoint.value)}
+                      r="3.5"
+                      fill="var(--accent)"
+                    />
+                  ) : null}
                 </>
               ) : null}
             </svg>
@@ -364,13 +484,25 @@ export function ValueChart({ nonce }: Props) {
                 onPointerUp={onOverviewPointerUp}
                 onPointerCancel={onOverviewPointerUp}
               >
-                <path
-                  d={overview.line}
-                  fill="none"
-                  stroke="var(--muted)"
-                  strokeWidth="1.25"
-                  opacity="0.7"
-                />
+                {showCost ? (
+                  <path
+                    d={overview.costLine}
+                    fill="none"
+                    stroke="var(--foam)"
+                    strokeWidth="1"
+                    strokeDasharray="3 3"
+                    opacity="0.45"
+                  />
+                ) : null}
+                {showValue ? (
+                  <path
+                    d={overview.line}
+                    fill="none"
+                    stroke="var(--muted)"
+                    strokeWidth="1.25"
+                    opacity="0.7"
+                  />
+                ) : null}
                 <rect
                   x={Math.min(overview.x0, overview.x1)}
                   y="0"
@@ -423,7 +555,8 @@ export function ValueChart({ nonce }: Props) {
                 />
               </div>
               <p className="mt-1 font-mono text-[11px] text-[var(--muted)]">
-                {formatChartDate(visible[0].t)} → {formatChartDate(shown.t)}
+                {formatChartDate(visible[0].t)} →{" "}
+                {formatChartDate((shown ?? visible[visible.length - 1]).t)}
               </p>
             </div>
           </>
@@ -441,5 +574,53 @@ export function ValueChart({ nonce }: Props) {
         ) : null}
       </div>
     </section>
+  );
+}
+
+function yValues(
+  rows: Pick<ValuePoint, "value" | "cost">[],
+  showValue: boolean,
+  showCost: boolean,
+): number[] {
+  const ys: number[] = [];
+  for (const row of rows) {
+    if (showValue) ys.push(row.value);
+    if (showCost) ys.push(row.cost);
+  }
+  return ys.length > 0 ? ys : [0];
+}
+
+function SeriesToggle({
+  label,
+  pressed,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string;
+  pressed: boolean;
+  disabled: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={pressed}
+      aria-disabled={disabled}
+      aria-label={`${pressed ? "Hide" : "Show"} ${label.toLowerCase()}`}
+      title={
+        disabled ? `Keep ${label.toLowerCase()} visible` : `${pressed ? "Hide" : "Show"} ${label.toLowerCase()}`
+      }
+      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 transition ${
+        pressed
+          ? "text-[var(--foam)] hover:bg-[var(--surface)]"
+          : "text-[var(--muted)] opacity-45 hover:opacity-70"
+      }`}
+      onClick={onClick}
+    >
+      {children}
+      {label}
+    </button>
   );
 }

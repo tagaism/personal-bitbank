@@ -36,6 +36,118 @@ function emptyLot() {
   return { quantity: new Decimal(0), costJpy: new Decimal(0) };
 }
 
+export type LotBook = {
+  lots: Map<string, { quantity: Decimal; costJpy: Decimal }>;
+  incompleteHistory: boolean;
+  skippedMargin: number;
+};
+
+export function createLotBook(): LotBook {
+  return { lots: new Map(), incompleteHistory: false, skippedMargin: 0 };
+}
+
+function getLot(book: LotBook, asset: string) {
+  let lot = book.lots.get(asset);
+  if (!lot) {
+    lot = emptyLot();
+    book.lots.set(asset, lot);
+  }
+  return lot;
+}
+
+function jpyCostOf(book: LotBook, asset: string, qty: Decimal): Decimal {
+  if (asset === "jpy") return qty;
+  const lot = getLot(book, asset);
+  if (isDust(lot.quantity)) {
+    if (!isDust(qty)) book.incompleteHistory = true;
+    return new Decimal(0);
+  }
+  return qty.mul(lot.costJpy).div(lot.quantity);
+}
+
+function reduceLot(book: LotBook, asset: string, qty: Decimal) {
+  if (asset === "jpy" || isDust(qty) || qty.lte(0)) return;
+  const lot = getLot(book, asset);
+  if (isDust(lot.quantity)) {
+    book.incompleteHistory = true;
+    return;
+  }
+  let disposed = qty;
+  if (disposed.gt(lot.quantity) && !isDust(disposed.minus(lot.quantity))) {
+    book.incompleteHistory = true;
+    disposed = lot.quantity;
+  }
+  const costRemoved = disposed.mul(lot.costJpy).div(lot.quantity);
+  lot.quantity = lot.quantity.minus(disposed);
+  lot.costJpy = lot.costJpy.minus(costRemoved);
+  if (lot.quantity.lte(0) || isDust(lot.quantity)) {
+    lot.quantity = new Decimal(0);
+    lot.costJpy = new Decimal(0);
+  }
+}
+
+function increaseLot(book: LotBook, asset: string, qty: Decimal, costJpy: Decimal) {
+  if (asset === "jpy") return;
+  if (qty.lte(0) || isDust(qty)) return;
+  const lot = getLot(book, asset);
+  lot.quantity = lot.quantity.plus(qty);
+  lot.costJpy = lot.costJpy.plus(costJpy);
+}
+
+/** Apply one spot fill to remaining-inventory cost. Margin trades are skipped. */
+export function applySpotLot(book: LotBook, trade: BitbankTrade) {
+  if (trade.position_side === "long" || trade.position_side === "short") {
+    book.skippedMargin += 1;
+    return;
+  }
+
+  const { base, quote } = splitPair(trade.pair);
+  const amount = new Decimal(trade.amount);
+  const price = new Decimal(trade.price);
+  const feeBase = new Decimal(trade.fee_amount_base || "0");
+  const feeQuote = new Decimal(trade.fee_amount_quote || "0");
+  const quoteGross = amount.mul(price);
+  const side = trade.side.toLowerCase();
+
+  if (side === "buy") {
+    const quoteSpent = quoteGross.plus(feeQuote);
+    const baseReceived = amount.minus(feeBase);
+    const cost = jpyCostOf(book, quote, quoteSpent);
+    reduceLot(book, quote, quoteSpent);
+    increaseLot(book, base, baseReceived, cost);
+    return;
+  }
+  if (side === "sell") {
+    const baseSold = amount.plus(feeBase);
+    const quoteReceived = Decimal.max(quoteGross.minus(feeQuote), new Decimal(0));
+    const transferredCost = jpyCostOf(book, base, amount);
+    reduceLot(book, base, baseSold);
+    increaseLot(book, quote, quoteReceived, transferredCost);
+  }
+}
+
+export function snapshotLots(book: LotBook): Partial<Record<string, LotSnapshot>> {
+  const snapshots: Partial<Record<string, LotSnapshot>> = {};
+  for (const [asset, lot] of book.lots) {
+    snapshots[asset] = {
+      quantity: lot.quantity.toFixed(),
+      costJpy: lot.costJpy.toFixed(),
+      averageCostJpy: isDust(lot.quantity)
+        ? null
+        : lot.costJpy.div(lot.quantity).toFixed(),
+    };
+  }
+  return snapshots;
+}
+
+export function remainingCostMap(book: LotBook): Map<string, Decimal> {
+  const cost = new Map<string, Decimal>();
+  for (const [asset, lot] of book.lots) {
+    cost.set(asset, lot.costJpy);
+  }
+  return cost;
+}
+
 /**
  * Weighted average cost of remaining spot holdings, measured in JPY.
  *
@@ -45,104 +157,17 @@ function emptyLot() {
  * Margin trades are skipped.
  */
 export function computeCostBasis(trades: BitbankTrade[]): CostBasisResult {
-  const lots = new Map<string, { quantity: Decimal; costJpy: Decimal }>();
-  let incompleteHistory = false;
-  let skippedMargin = 0;
-
+  const book = createLotBook();
   const sorted = [...trades].sort((a, b) => {
     if (a.executed_at !== b.executed_at) return a.executed_at - b.executed_at;
     return a.trade_id - b.trade_id;
   });
-
-  const get = (asset: string) => {
-    let lot = lots.get(asset);
-    if (!lot) {
-      lot = emptyLot();
-      lots.set(asset, lot);
-    }
-    return lot;
+  for (const trade of sorted) applySpotLot(book, trade);
+  return {
+    lots: snapshotLots(book),
+    incompleteHistory: book.incompleteHistory,
+    skippedMargin: book.skippedMargin,
   };
-
-  const jpyCostOf = (asset: string, qty: Decimal): Decimal => {
-    if (asset === "jpy") return qty;
-    const lot = get(asset);
-    if (isDust(lot.quantity)) {
-      if (!isDust(qty)) incompleteHistory = true;
-      return new Decimal(0);
-    }
-    return qty.mul(lot.costJpy).div(lot.quantity);
-  };
-
-  const reduce = (asset: string, qty: Decimal) => {
-    if (asset === "jpy" || isDust(qty) || qty.lte(0)) return;
-    const lot = get(asset);
-    if (isDust(lot.quantity)) {
-      incompleteHistory = true;
-      return;
-    }
-    let disposed = qty;
-    if (disposed.gt(lot.quantity) && !isDust(disposed.minus(lot.quantity))) {
-      incompleteHistory = true;
-      disposed = lot.quantity;
-    }
-    const costRemoved = disposed.mul(lot.costJpy).div(lot.quantity);
-    lot.quantity = lot.quantity.minus(disposed);
-    lot.costJpy = lot.costJpy.minus(costRemoved);
-    if (lot.quantity.lte(0) || isDust(lot.quantity)) {
-      lot.quantity = new Decimal(0);
-      lot.costJpy = new Decimal(0);
-    }
-  };
-
-  const increase = (asset: string, qty: Decimal, costJpy: Decimal) => {
-    if (asset === "jpy") return;
-    if (qty.lte(0) || isDust(qty)) return;
-    const lot = get(asset);
-    lot.quantity = lot.quantity.plus(qty);
-    lot.costJpy = lot.costJpy.plus(costJpy);
-  };
-
-  for (const trade of sorted) {
-    if (trade.position_side === "long" || trade.position_side === "short") {
-      skippedMargin += 1;
-      continue;
-    }
-
-    const { base, quote } = splitPair(trade.pair);
-    const amount = new Decimal(trade.amount);
-    const price = new Decimal(trade.price);
-    const feeBase = new Decimal(trade.fee_amount_base || "0");
-    const feeQuote = new Decimal(trade.fee_amount_quote || "0");
-    const quoteGross = amount.mul(price);
-    const side = trade.side.toLowerCase();
-
-    if (side === "buy") {
-      const quoteSpent = quoteGross.plus(feeQuote);
-      const baseReceived = amount.minus(feeBase);
-      const cost = jpyCostOf(quote, quoteSpent);
-      reduce(quote, quoteSpent);
-      increase(base, baseReceived, cost);
-    } else if (side === "sell") {
-      const baseSold = amount.plus(feeBase);
-      const quoteReceived = Decimal.max(quoteGross.minus(feeQuote), new Decimal(0));
-      const transferredCost = jpyCostOf(base, amount);
-      reduce(base, baseSold);
-      increase(quote, quoteReceived, transferredCost);
-    }
-  }
-
-  const snapshots: Partial<Record<string, LotSnapshot>> = {};
-  for (const [asset, lot] of lots) {
-    snapshots[asset] = {
-      quantity: lot.quantity.toFixed(),
-      costJpy: lot.costJpy.toFixed(),
-      averageCostJpy: isDust(lot.quantity)
-        ? null
-        : lot.costJpy.div(lot.quantity).toFixed(),
-    };
-  }
-
-  return { lots: snapshots, incompleteHistory, skippedMargin };
 }
 
 export function quantitiesDiffer(

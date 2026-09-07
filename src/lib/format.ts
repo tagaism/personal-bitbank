@@ -74,6 +74,25 @@ export function formatYen(value: string | null): string {
   }).format(number)}`;
 }
 
+export function formatSignedYen(value: number): string {
+  const formatted = formatYen(String(Math.abs(value)));
+  if (formatted === "—") return formatted;
+  if (value > 0) return `+${formatted}`;
+  if (value < 0) return `-${formatted}`;
+  return formatted;
+}
+
+export function formatPct(fraction: number): string {
+  if (!Number.isFinite(fraction)) return "—";
+  const pct = fraction * 100;
+  const digits = Math.abs(pct) >= 10 ? 1 : 2;
+  const body = `${new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(pct)}%`;
+  return pct > 0 ? `+${body}` : body;
+}
+
 export function formatYenAxis(value: number): string {
   if (value === 0) return "¥0";
   const abs = Math.abs(value);

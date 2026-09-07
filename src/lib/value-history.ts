@@ -4,7 +4,12 @@ import { ensureDailyCandles, loadCloses } from "./bitbank/candles";
 import { getTickers, lastPriceByPair, priceInJpy } from "./bitbank/tickers";
 import type { BitbankTrade } from "./bitbank/types";
 import { loadTradeCache } from "./cache";
-import { splitPair } from "./cost-basis";
+import {
+  applySpotLot,
+  createLotBook,
+  remainingCostMap,
+  splitPair,
+} from "./cost-basis";
 import { applySpotFill, emptyQuantities } from "./quantities";
 
 Decimal.set({ precision: 40, rounding: Decimal.ROUND_HALF_EVEN });
@@ -15,6 +20,8 @@ const DAY_MS = 86_400_000;
 export type ValuePoint = {
   t: number;
   value: number;
+  /** Remaining inventory cost plus JPY cash. */
+  cost: number;
 };
 
 export type ValueHistoryOk = {
@@ -133,7 +140,32 @@ export function markToMarket(
   return total;
 }
 
-export type QtySnapshot = { t: number; qty: Map<string, Decimal> };
+export type QtySnapshot = {
+  t: number;
+  qty: Map<string, Decimal>;
+  costJpy: Map<string, Decimal>;
+};
+
+export function investedJpy(
+  qty: Map<string, Decimal>,
+  costJpy: Map<string, Decimal>,
+): Decimal {
+  let total = qty.get("jpy") ?? new Decimal(0);
+  for (const [asset, cost] of costJpy) {
+    if (asset === "jpy") continue;
+    total = total.plus(cost);
+  }
+  return total;
+}
+
+function scaleCost(
+  reconCost: Decimal,
+  reconQty: Decimal,
+  fittedQty: Decimal,
+): Decimal {
+  if (reconQty.abs().lte(DUST)) return new Decimal(0);
+  return reconCost.mul(fittedQty).div(reconQty);
+}
 
 export function reconstructDailyQuantities(
   trades: BitbankTrade[],
@@ -145,6 +177,7 @@ export function reconstructDailyQuantities(
     return a.trade_id - b.trade_id;
   });
   const qty = emptyQuantities();
+  const book = createLotBook();
   const days = eachUtcDay(fromMs, toMs);
   const points: QtySnapshot[] = [];
   let index = 0;
@@ -155,9 +188,14 @@ export function reconstructDailyQuantities(
       const trade = sorted[index];
       if (trade.executed_at >= dayEnd) break;
       applySpotFill(qty, trade);
+      applySpotLot(book, trade);
       index += 1;
     }
-    points.push({ t: day, qty: new Map(qty) });
+    points.push({
+      t: day,
+      qty: new Map(qty),
+      costJpy: remainingCostMap(book),
+    });
   }
   return points;
 }
@@ -198,12 +236,21 @@ export function scaleQuantitiesToActual(
   }
   return snapshots.map((snap) => {
     const qty = new Map<string, Decimal>();
+    const costJpy = new Map<string, Decimal>();
     for (const asset of assets) {
       const fit = fits.get(asset);
       if (!fit) continue;
-      qty.set(asset, applyFit(snap.qty.get(asset) ?? new Decimal(0), fit));
+      const reconQty = snap.qty.get(asset) ?? new Decimal(0);
+      const fittedQty = applyFit(reconQty, fit);
+      qty.set(asset, fittedQty);
+      if (asset !== "jpy") {
+        costJpy.set(
+          asset,
+          scaleCost(snap.costJpy.get(asset) ?? new Decimal(0), reconQty, fittedQty),
+        );
+      }
     }
-    return { t: snap.t, qty };
+    return { t: snap.t, qty, costJpy };
   });
 }
 
@@ -296,6 +343,7 @@ export async function loadValueHistory(): Promise<ValueHistoryResult> {
           closes,
           isLast ? live : undefined,
         ),
+        cost: investedJpy(snap.qty, snap.costJpy),
       };
     });
     const scaled = scaleToActual(
@@ -305,6 +353,7 @@ export async function loadValueHistory(): Promise<ValueHistoryResult> {
     const points: ValuePoint[] = reconstructed.map((point, index) => ({
       t: point.t,
       value: Number(scaled.values[index]?.toFixed(2) ?? "0"),
+      cost: Number(point.cost.toFixed(2)),
     }));
 
     return {

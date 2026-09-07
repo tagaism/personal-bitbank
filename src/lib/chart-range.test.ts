@@ -38,10 +38,10 @@ describe("windowFromPreset", () => {
 });
 
 describe("DEFAULT_PRESET", () => {
-  it("is YTD", () => {
-    expect(DEFAULT_PRESET).toBe("YTD");
+  it("is 3M", () => {
+    expect(DEFAULT_PRESET).toBe("3M");
     const win = windowFromPreset(times, DEFAULT_PRESET);
-    expect(matchingPreset(times, win)).toBe("YTD");
+    expect(matchingPreset(times, win)).toBe("3M");
     const endT = times[win.end] ?? 0;
     expect(times[win.start]).toBe(
       Date.UTC(new Date(endT).getUTCFullYear(), 0, 1),

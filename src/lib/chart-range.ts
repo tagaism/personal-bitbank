@@ -2,7 +2,7 @@ export const RANGE_PRESETS = ["1M", "3M", "6M", "1Y", "YTD", "ALL"] as const;
 
 export type RangePreset = (typeof RANGE_PRESETS)[number];
 
-export const DEFAULT_PRESET: RangePreset = "YTD";
+export const DEFAULT_PRESET: RangePreset = "3M";
 
 export type ChartWindow = {
   start: number;

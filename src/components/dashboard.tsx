@@ -1,8 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PortfolioResult } from "@/lib/portfolio";
 import { formatQuantity, formatTimestamp, formatYen } from "@/lib/format";
+import {
+  nextHoldingSort,
+  sortHoldings,
+  type HoldingSortKey,
+  type SortDir,
+} from "@/lib/sort-holdings";
 import { ValueChart } from "./value-chart";
 
 type ImportResult =
@@ -14,7 +20,20 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [sort, setSort] = useState<{ key: HoldingSortKey; dir: SortDir } | null>(
+    null,
+  );
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const holdings = useMemo(() => {
+    if (!data?.ok) return [];
+    if (!sort) return data.holdings;
+    return sortHoldings(data.holdings, sort.key, sort.dir);
+  }, [data, sort]);
+
+  const onSort = useCallback((column: HoldingSortKey) => {
+    setSort((current) => nextHoldingSort(current, column));
+  }, []);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) {
@@ -202,14 +221,37 @@ export function Dashboard() {
             <table className="w-full border-collapse text-left">
               <thead className="bg-[var(--surface)] text-[11px] tracking-[0.18em] text-[var(--muted)] uppercase">
                 <tr>
-                  <th className="px-5 py-3 font-medium">Asset</th>
-                  <th className="px-5 py-3 text-right font-medium">Quantity</th>
-                  <th className="px-5 py-3 text-right font-medium">Average cost</th>
-                  <th className="px-5 py-3 text-right font-medium">Current price</th>
+                  <SortHeader
+                    label="Asset"
+                    column="asset"
+                    sort={sort}
+                    onSort={onSort}
+                  />
+                  <SortHeader
+                    label="Quantity"
+                    column="quantity"
+                    align="right"
+                    sort={sort}
+                    onSort={onSort}
+                  />
+                  <SortHeader
+                    label="Average cost"
+                    column="averageCostJpy"
+                    align="right"
+                    sort={sort}
+                    onSort={onSort}
+                  />
+                  <SortHeader
+                    label="Current price"
+                    column="currentPriceJpy"
+                    align="right"
+                    sort={sort}
+                    onSort={onSort}
+                  />
                 </tr>
               </thead>
               <tbody>
-                {data.holdings.length === 0 ? (
+                {holdings.length === 0 ? (
                   <tr>
                     <td
                       colSpan={4}
@@ -219,7 +261,7 @@ export function Dashboard() {
                     </td>
                   </tr>
                 ) : (
-                  data.holdings.map((row) => (
+                  holdings.map((row) => (
                     <tr
                       key={row.asset}
                       className="border-t border-[var(--line)] bg-[var(--bg)]"
@@ -255,5 +297,55 @@ export function Dashboard() {
         </>
       ) : null}
     </div>
+  );
+}
+
+function SortHeader({
+  label,
+  column,
+  align = "left",
+  sort,
+  onSort,
+}: {
+  label: string;
+  column: HoldingSortKey;
+  align?: "left" | "right";
+  sort: { key: HoldingSortKey; dir: SortDir } | null;
+  onSort: (column: HoldingSortKey) => void;
+}) {
+  const active = sort != null && sort.key === column;
+  const ariaSort = active
+    ? sort.dir === "asc"
+      ? "ascending"
+      : "descending"
+    : "none";
+  const mark = active ? (sort.dir === "asc" ? "↑" : "↓") : "↕";
+
+  return (
+    <th
+      className={`px-5 py-3 font-medium ${align === "right" ? "text-right" : ""}`}
+      aria-sort={ariaSort}
+    >
+      <button
+        type="button"
+        className={`inline-flex items-center gap-1.5 tracking-[0.18em] uppercase transition hover:text-[var(--foam)] ${
+          align === "right" ? "w-full justify-end" : ""
+        } ${active ? "text-[var(--foam)]" : ""}`}
+        aria-label={`Sort by ${label}`}
+        onClick={() => {
+          onSort(column);
+        }}
+      >
+        {label}
+        <span
+          className={`font-mono text-[10px] tracking-normal ${
+            active ? "text-[var(--accent)]" : "text-[var(--line)]"
+          }`}
+          aria-hidden
+        >
+          {mark}
+        </span>
+      </button>
+    </th>
   );
 }

@@ -5,6 +5,7 @@ import {
   applyFit,
   eachUtcDay,
   fitAsset,
+  investedJpy,
   markToMarket,
   pairsForTrades,
   priceAt,
@@ -85,6 +86,35 @@ describe("reconstructDailyQuantities", () => {
     expect(snaps).toHaveLength(2);
     expect(snaps[0]?.qty.get("btc")?.toFixed()).toBe("1");
     expect(snaps[1]?.qty.get("btc")?.toFixed()).toBe("1");
+    expect(snaps[0]?.costJpy.get("btc")?.toFixed()).toBe("10000000");
+    expect(snaps[1]?.costJpy.get("btc")?.toFixed()).toBe("10000000");
+  });
+
+  it("drops remaining cost after a partial sell", () => {
+    const day1 = Date.parse("2021-02-25T00:00:00Z");
+    const day2 = Date.parse("2021-02-26T00:00:00Z");
+    const snaps = reconstructDailyQuantities(
+      [
+        trade({
+          pair: "btc_jpy",
+          side: "buy",
+          amount: "2",
+          price: "10000000",
+          executed_at: day1 + 1000,
+        }),
+        trade({
+          pair: "btc_jpy",
+          side: "sell",
+          amount: "1",
+          price: "15000000",
+          executed_at: day2 + 1000,
+        }),
+      ],
+      day1,
+      day2,
+    );
+    expect(snaps[0]?.costJpy.get("btc")?.toFixed()).toBe("20000000");
+    expect(snaps[1]?.costJpy.get("btc")?.toFixed()).toBe("10000000");
   });
 });
 
@@ -107,13 +137,35 @@ describe("scaleQuantitiesToActual", () => {
     const day1 = Date.parse("2021-02-25T00:00:00Z");
     const scaled = scaleQuantitiesToActual(
       [
-        { t: day1, qty: new Map([["btc", new Decimal("2")]]) },
-        { t: day1 + 86400000, qty: new Map([["btc", new Decimal("2")]]) },
+        {
+          t: day1,
+          qty: new Map([["btc", new Decimal("2")]]),
+          costJpy: new Map([["btc", new Decimal("20")]]),
+        },
+        {
+          t: day1 + 86400000,
+          qty: new Map([["btc", new Decimal("2")]]),
+          costJpy: new Map([["btc", new Decimal("20")]]),
+        },
       ],
       new Map([["btc", new Decimal("0.5")]]),
     );
     expect(scaled[1]?.qty.get("btc")?.toFixed()).toBe("0.5");
     expect(scaled[0]?.qty.get("btc")?.toFixed()).toBe("0.5");
+    expect(scaled[1]?.costJpy.get("btc")?.toFixed()).toBe("5");
+  });
+});
+
+describe("investedJpy", () => {
+  it("adds remaining crypto cost to JPY cash", () => {
+    const total = investedJpy(
+      new Map([
+        ["jpy", new Decimal("1000")],
+        ["btc", new Decimal("1")],
+      ]),
+      new Map([["btc", new Decimal("5000")]]),
+    );
+    expect(total.toFixed()).toBe("6000");
   });
 });
 

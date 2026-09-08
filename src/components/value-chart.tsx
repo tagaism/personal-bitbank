@@ -31,13 +31,16 @@ import {
 
 type Props = {
   nonce: number | null;
+  asset?: string | null;
+  assetLabel?: string;
+  onClearAsset?: () => void;
 };
 
 const PAD = { left: 52, right: 12, top: 12, bottom: 28 };
 const OVERVIEW_H = 48;
 const MIN_SPAN = 7;
 
-export function ValueChart({ nonce }: Props) {
+export function ValueChart({ nonce, asset = null, assetLabel, onClearAsset }: Props) {
   const [data, setData] = useState<ValueHistoryResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [hover, setHover] = useState<number | null>(null);
@@ -89,7 +92,11 @@ export function ValueChart({ nonce }: Props) {
     };
   }, [nonce]);
 
-  const points = useMemo(() => (data?.ok ? data.points : []), [data]);
+  const points = useMemo(() => {
+    if (!data?.ok) return [];
+    if (asset) return data.byAsset[asset] ?? [];
+    return data.points;
+  }, [asset, data]);
   const times = useMemo(() => points.map((point) => point.t), [points]);
   const view = useMemo(() => {
     if (points.length < 2) return { start: 0, end: 0 };
@@ -273,15 +280,31 @@ export function ValueChart({ nonce }: Props) {
     shown && Math.abs(shown.cost) >= 1 ? formatPct(pnl / Math.abs(shown.cost)) : "—";
 
   return (
-    <section className="mt-8 rounded-2xl border border-[var(--line)] bg-[var(--bg)]">
+    <section
+      id="portfolio-chart"
+      className="mt-8 rounded-2xl border border-[var(--line)] bg-[var(--bg)]"
+    >
       <div className="flex flex-col gap-3 border-b border-[var(--line)] px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-sm tracking-wide text-[var(--foam)]">
-            Portfolio value
+            {asset ? `${asset.toUpperCase()} value` : "Portfolio value"}
           </h2>
           <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
-            Daily mark-to-market versus remaining cost (invested capital) in JPY.
+            {asset
+              ? `Daily mark-to-market versus remaining cost for ${
+                  assetLabel ?? asset.toUpperCase()
+                } in JPY.`
+              : "Daily mark-to-market versus remaining cost (invested capital) in JPY."}
           </p>
+          {asset && onClearAsset ? (
+            <button
+              type="button"
+              className="mt-2 rounded-full border border-[var(--line)] px-3 py-1 font-mono text-[11px] tracking-wide text-[var(--muted)] uppercase transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+              onClick={onClearAsset}
+            >
+              All assets
+            </button>
+          ) : null}
           <p className="mt-2 flex flex-wrap gap-x-2 gap-y-1 font-mono text-[11px] tracking-wide text-[var(--muted)] uppercase">
             <SeriesToggle
               label="Value"
@@ -562,7 +585,7 @@ export function ValueChart({ nonce }: Props) {
           </>
         ) : null}
 
-        {data?.ok ? (
+        {data?.ok && !asset ? (
           <p className="px-4 pb-3 font-mono text-[11px] text-[var(--muted)]">
             {Math.abs(Number(data.meta.scale) - 1) > 0.01
               ? `Scale ${Number(data.meta.scale).toFixed(3)}× to match exchange balances`

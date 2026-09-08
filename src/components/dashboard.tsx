@@ -23,6 +23,7 @@ export function Dashboard() {
   const [sort, setSort] = useState<{ key: HoldingSortKey; dir: SortDir } | null>(
     null,
   );
+  const [selectedAsset, setSelectedAsset] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const holdings = useMemo(() => {
@@ -31,8 +32,26 @@ export function Dashboard() {
     return sortHoldings(data.holdings, sort.key, sort.dir);
   }, [data, sort]);
 
+  const chartAsset =
+    selectedAsset && holdings.some((row) => row.asset === selectedAsset)
+      ? selectedAsset
+      : null;
+
   const onSort = useCallback((column: HoldingSortKey) => {
     setSort((current) => nextHoldingSort(current, column));
+  }, []);
+
+  const selectAsset = useCallback((asset: string) => {
+    setSelectedAsset((current) => {
+      const next = current === asset ? null : asset;
+      if (next) {
+        document.getElementById("portfolio-chart")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }
+      return next;
+    });
   }, []);
 
   const load = useCallback(async (isRefresh = false) => {
@@ -196,7 +215,16 @@ export function Dashboard() {
             {loading ? " · refreshing…" : ""}
           </p>
 
-          <ValueChart nonce={data.meta.syncedAt} />
+          <ValueChart
+            nonce={data.meta.syncedAt}
+            asset={chartAsset}
+            assetLabel={
+              holdings.find((row) => row.asset === chartAsset)?.name
+            }
+            onClearAsset={() => {
+              setSelectedAsset(null);
+            }}
+          />
 
           {data.meta.incompleteHistory ? (
             <div className="mt-4 rounded-xl border border-[var(--warn-line)] bg-[var(--warn-bg)] px-4 py-3 text-sm leading-6 text-[var(--warn)]">
@@ -217,7 +245,11 @@ export function Dashboard() {
             </div>
           ) : null}
 
-          <div className="mt-8 overflow-x-auto rounded-2xl border border-[var(--line)]">
+          <p className="mt-6 font-mono text-[11px] tracking-wide text-[var(--muted)]">
+            Click a row to chart that asset. Click again, or All assets, for the
+            full portfolio.
+          </p>
+          <div className="mt-3 overflow-x-auto rounded-2xl border border-[var(--line)]">
             <table className="w-full border-collapse text-left">
               <thead className="bg-[var(--surface)] text-[11px] tracking-[0.18em] text-[var(--muted)] uppercase">
                 <tr>
@@ -264,7 +296,23 @@ export function Dashboard() {
                   holdings.map((row) => (
                     <tr
                       key={row.asset}
-                      className="border-t border-[var(--line)] bg-[var(--bg)]"
+                      aria-selected={chartAsset === row.asset}
+                      aria-label={`Show ${row.asset.toUpperCase()} chart`}
+                      tabIndex={0}
+                      className={`cursor-pointer border-t border-[var(--line)] transition ${
+                        chartAsset === row.asset
+                          ? "bg-[var(--surface)]"
+                          : "bg-[var(--bg)] hover:bg-[var(--surface)]"
+                      }`}
+                      onClick={() => {
+                        selectAsset(row.asset);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          selectAsset(row.asset);
+                        }
+                      }}
                     >
                       <td className="px-5 py-4">
                         <div className="flex items-baseline gap-2">

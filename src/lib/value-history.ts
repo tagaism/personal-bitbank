@@ -27,6 +27,7 @@ export type ValuePoint = {
 export type ValueHistoryOk = {
   ok: true;
   points: ValuePoint[];
+  byAsset: Record<string, ValuePoint[]>;
   meta: {
     from: number;
     to: number;
@@ -156,6 +157,73 @@ export function investedJpy(
     total = total.plus(cost);
   }
   return total;
+}
+
+export function snapshotValue(
+  snap: QtySnapshot,
+  dayTs: number,
+  closes: Map<string, { ts: number; close: string }[]>,
+  live?: Map<string, string>,
+  asset?: string | null,
+): { value: Decimal; cost: Decimal } {
+  if (!asset) {
+    return {
+      value: markToMarket(snap.qty, dayTs, closes, live),
+      cost: investedJpy(snap.qty, snap.costJpy),
+    };
+  }
+  const code = asset.toLowerCase();
+  const amount = snap.qty.get(code) ?? new Decimal(0);
+  if (code === "jpy") {
+    return { value: amount, cost: amount };
+  }
+  const px =
+    amount.abs().lte(DUST) ? null : priceAt(code, dayTs, closes, live);
+  return {
+    value: px ? amount.mul(px) : new Decimal(0),
+    cost: snap.costJpy.get(code) ?? new Decimal(0),
+  };
+}
+
+export function pointsFromSnapshots(
+  qtySeries: QtySnapshot[],
+  closes: Map<string, { ts: number; close: string }[]>,
+  live: Map<string, string> | undefined,
+  actual: Decimal | null,
+  asset?: string | null,
+): {
+  points: ValuePoint[];
+  reconstructedEnd: Decimal;
+  scale: Decimal;
+  offset: Decimal;
+} {
+  const reconstructed = qtySeries.map((snap, index) => {
+    const isLast = index === qtySeries.length - 1;
+    const marked = snapshotValue(
+      snap,
+      snap.t,
+      closes,
+      isLast ? live : undefined,
+      asset,
+    );
+    return { t: snap.t, reconstructed: marked.value, cost: marked.cost };
+  });
+  const scaled = scaleToActual(
+    reconstructed.map((point) => point.reconstructed),
+    actual,
+  );
+  const points: ValuePoint[] = reconstructed.map((point, index) => ({
+    t: point.t,
+    value: Number(scaled.values[index]?.toFixed(2) ?? "0"),
+    cost: Number(point.cost.toFixed(2)),
+  }));
+  return {
+    points,
+    reconstructedEnd:
+      reconstructed[reconstructed.length - 1]?.reconstructed ?? new Decimal(0),
+    scale: scaled.scale,
+    offset: scaled.offset,
+  };
 }
 
 function scaleCost(
@@ -314,6 +382,7 @@ export async function loadValueHistory(): Promise<ValueHistoryResult> {
     const live = lastPriceByPair(tickers);
 
     const actualQty = new Map<string, Decimal>();
+    const actualByAsset = new Map<string, Decimal | null>();
     let actual: Decimal | null = new Decimal(0);
     for (const asset of assets) {
       const amount = new Decimal(asset.onhand_amount || "0");
@@ -324,8 +393,13 @@ export async function loadValueHistory(): Promise<ValueHistoryResult> {
       const px = livePrice
         ? new Decimal(livePrice)
         : priceAt(code, utcDay(toMs), closes, live);
-      if (!px) continue;
-      actual = actual.plus(amount.mul(px));
+      if (!px) {
+        actualByAsset.set(code, null);
+        continue;
+      }
+      const market = amount.mul(px);
+      actualByAsset.set(code, market);
+      actual = actual.plus(market);
     }
     if (actual.lte(0)) actual = null;
 
@@ -333,41 +407,29 @@ export async function loadValueHistory(): Promise<ValueHistoryResult> {
       reconstructDailyQuantities(trades, fromMs, toMs),
       actualQty,
     );
-    const reconstructed = qtySeries.map((snap, index) => {
-      const isLast = index === qtySeries.length - 1;
-      return {
-        t: snap.t,
-        reconstructed: markToMarket(
-          snap.qty,
-          snap.t,
-          closes,
-          isLast ? live : undefined,
-        ),
-        cost: investedJpy(snap.qty, snap.costJpy),
-      };
-    });
-    const scaled = scaleToActual(
-      reconstructed.map((point) => point.reconstructed),
-      actual,
-    );
-    const points: ValuePoint[] = reconstructed.map((point, index) => ({
-      t: point.t,
-      value: Number(scaled.values[index]?.toFixed(2) ?? "0"),
-      cost: Number(point.cost.toFixed(2)),
-    }));
+    const portfolio = pointsFromSnapshots(qtySeries, closes, live, actual, null);
+    const byAsset: Record<string, ValuePoint[]> = {};
+    for (const code of actualQty.keys()) {
+      byAsset[code] = pointsFromSnapshots(
+        qtySeries,
+        closes,
+        live,
+        actualByAsset.get(code) ?? null,
+        code,
+      ).points;
+    }
 
     return {
       ok: true,
-      points,
+      points: portfolio.points,
+      byAsset,
       meta: {
         from: fromMs,
         to: toMs,
-        scale: scaled.scale.toFixed(),
+        scale: portfolio.scale.toFixed(),
         actualJpy: actual?.toFixed() ?? null,
-        reconstructedEndJpy: (
-          reconstructed[reconstructed.length - 1]?.reconstructed ?? new Decimal(0)
-        ).toFixed(),
-        offsetJpy: scaled.offset.toFixed(),
+        reconstructedEndJpy: portfolio.reconstructedEnd.toFixed(),
+        offsetJpy: portfolio.offset.toFixed(),
         yearsFetched,
         pairCount: pairs.length,
       },

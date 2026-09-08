@@ -19,7 +19,7 @@ Quantity from the exchange. Weighted average cost rebuilt from your fills. Live 
 </p>
 
 <p>
-  <img src="docs/screenshots/dashboard.png" alt="Sample dashboard with masked sample data" width="900" />
+  <img src="docs/screenshots/dashboard.png" alt="Sample dashboard: value versus cost chart and holdings table with fictional figures" width="900" />
 </p>
 
 <sub>Figures in screenshots are sample data, not a live account.</sub>
@@ -40,14 +40,14 @@ bitbank’s assets API returns **balances**, not **average cost**. This app stay
 | Portfolio value | Daily candles × reconstructed holdings, pinned to today |
 
 <p align="center">
-  <img src="docs/screenshots/chart.png" alt="Sample portfolio value chart with range presets" width="900" />
+  <img src="docs/screenshots/chart.png" alt="Sample chart of mark-to-market value versus remaining cost, with P&amp;L" width="900" />
 </p>
 
 ## Features
 
 - **Weighted average cost in JPY** — buys add cost (quote fees in); sells leave the average unchanged; BTC-quoted pairs transfer JPY cost
 - **Live prices** next to cost, so you can compare basis to the market
-- **Daily mark-to-market chart** from first fill → today, with `1M` / `3M` / `6M` / `1Y` / `YTD` / `ALL` and a drag slider
+- **Daily mark-to-market chart** of value versus remaining cost, with P&L, `1M` / `3M` / `6M` / `1Y` / `YTD` / `ALL`, and a drag slider. Click a holdings row to isolate that asset.
 - **CSV backfill** for years the API no longer returns (bitbank **約定履歴**)
 - **History-gap warnings** when reconstructed qty ≠ exchange qty (deposits, withdrawals, margin)
 - **Local only** — keys never go to the browser; cache lives in `.data/`

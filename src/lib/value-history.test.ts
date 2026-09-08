@@ -12,6 +12,7 @@ import {
   reconstructDailyQuantities,
   scaleQuantitiesToActual,
   scaleToActual,
+  snapshotValue,
   utcDay,
 } from "./value-history";
 
@@ -166,6 +167,44 @@ describe("investedJpy", () => {
       new Map([["btc", new Decimal("5000")]]),
     );
     expect(total.toFixed()).toBe("6000");
+  });
+});
+
+describe("snapshotValue", () => {
+  const day = Date.parse("2021-02-25T00:00:00Z");
+  const snap = {
+    t: day,
+    qty: new Map([
+      ["jpy", new Decimal("1000")],
+      ["btc", new Decimal("1")],
+      ["eth", new Decimal("2")],
+    ]),
+    costJpy: new Map([
+      ["btc", new Decimal("5000")],
+      ["eth", new Decimal("800")],
+    ]),
+  };
+  const closes = new Map([
+    ["btc_jpy", [{ ts: day, close: "50" }]],
+    ["eth_jpy", [{ ts: day, close: "10" }]],
+  ]);
+
+  it("marks the whole book when no asset is given", () => {
+    const marked = snapshotValue(snap, day, closes);
+    expect(marked.value.toFixed()).toBe("1070");
+    expect(marked.cost.toFixed()).toBe("6800");
+  });
+
+  it("isolates one crypto's market value and remaining cost", () => {
+    const marked = snapshotValue(snap, day, closes, undefined, "eth");
+    expect(marked.value.toFixed()).toBe("20");
+    expect(marked.cost.toFixed()).toBe("800");
+  });
+
+  it("treats JPY as cash on both series", () => {
+    const marked = snapshotValue(snap, day, closes, undefined, "jpy");
+    expect(marked.value.toFixed()).toBe("1000");
+    expect(marked.cost.toFixed()).toBe("1000");
   });
 });
 
